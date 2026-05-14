@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import L from "leaflet";
 import Icon from "@/components/ui/icon";
 import { contacts, statusColor } from "./types";
 import type { Contact, Zone } from "./types";
@@ -8,66 +10,182 @@ interface MapTabProps {
   setSelectedContact: (c: Contact | null) => void;
 }
 
+const MY_LAT = 55.7600;
+const MY_LNG = 37.6050;
+
+function createContactIcon(contact: Contact): L.DivIcon {
+  const isOffline = contact.status === "offline";
+  const pulse = contact.status === "online"
+    ? `<div style="position:absolute;inset:-8px;border-radius:50%;background:${contact.color}25;animation:ping-slow 2.5s ease-out infinite;"></div>`
+    : "";
+  return L.divIcon({
+    className: "",
+    iconSize: [40, 48],
+    iconAnchor: [20, 48],
+    html: `
+      <div style="position:relative;width:40px;height:48px;display:flex;flex-direction:column;align-items:center;">
+        ${pulse}
+        <div style="
+          width:40px;height:40px;border-radius:50%;
+          background:${isOffline ? "#333" : contact.color};
+          box-shadow:${isOffline ? "none" : `0 0 16px ${contact.color}60`};
+          display:flex;align-items:center;justify-content:center;
+          font-weight:700;font-size:15px;color:#080c17;
+          font-family:'Golos Text',sans-serif;
+          position:relative;z-index:1;
+          border:2px solid rgba(255,255,255,0.15);
+          ${isOffline ? "opacity:0.5;" : ""}
+        ">${contact.name.charAt(0)}</div>
+        <div style="
+          width:8px;height:8px;border-radius:50%;margin-top:-2px;
+          background:${statusColor[contact.status]};
+          border:2px solid #080c17;
+          box-shadow:0 0 6px ${statusColor[contact.status]};
+          position:relative;z-index:1;
+        "></div>
+      </div>
+    `,
+  });
+}
+
+function createMyIcon(): L.DivIcon {
+  return L.divIcon({
+    className: "",
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+    html: `
+      <div style="position:relative;width:20px;height:20px;">
+        <div style="position:absolute;inset:-20px;border-radius:50%;background:#00FFB320;animation:pulse-ring 2s ease-out infinite;"></div>
+        <div style="width:20px;height:20px;border-radius:50%;background:#00FFB3;border:2px solid white;box-shadow:0 0 20px #00FFB380;animation:float 3s ease-in-out infinite;"></div>
+      </div>
+    `,
+  });
+}
+
 export default function MapTab({ zoneList, selectedContact, setSelectedContact }: MapTabProps) {
+  const mapRef = useRef<L.Map | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<Map<number, L.Marker>>(new Map());
+  const zonesRef = useRef<Map<number, L.Circle>>(new Map());
+  const popupRef = useRef<L.Popup | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    const map = L.map(containerRef.current, {
+      center: [MY_LAT, MY_LNG],
+      zoom: 13,
+      zoomControl: false,
+      attributionControl: false,
+    });
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      maxZoom: 19,
+    }).addTo(map);
+
+    L.marker([MY_LAT, MY_LNG], { icon: createMyIcon(), zIndexOffset: 1000 }).addTo(map);
+
+    contacts.forEach(c => {
+      const marker = L.marker([c.lat, c.lng], { icon: createContactIcon(c) });
+      marker.on("click", () => {
+        setSelectedContact(c);
+      });
+      marker.addTo(map);
+      markersRef.current.set(c.id, marker);
+    });
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    zonesRef.current.forEach(circle => circle.remove());
+    zonesRef.current.clear();
+
+    zoneList.forEach(z => {
+      if (!z.active) return;
+      const circle = L.circle([z.lat, z.lng], {
+        radius: z.radius,
+        color: z.color,
+        fillColor: z.color,
+        fillOpacity: 0.06,
+        weight: 1.5,
+        dashArray: "6 4",
+        opacity: 0.5,
+      });
+      circle.bindTooltip(z.name, {
+        permanent: true,
+        direction: "center",
+        className: "zone-tooltip",
+      });
+      circle.addTo(map);
+      zonesRef.current.set(z.id, circle);
+    });
+  }, [zoneList]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (popupRef.current) {
+      popupRef.current.remove();
+      popupRef.current = null;
+    }
+
+    if (selectedContact) {
+      map.panTo([selectedContact.lat, selectedContact.lng], { animate: true, duration: 0.5 });
+    }
+  }, [selectedContact]);
+
+  const handleZoomIn = () => mapRef.current?.zoomIn();
+  const handleZoomOut = () => mapRef.current?.zoomOut();
+  const handleCenter = () => mapRef.current?.panTo([MY_LAT, MY_LNG], { animate: true, duration: 0.5 });
+
   return (
     <div className="h-full flex flex-col animate-fade-in">
-      <div className="flex-1 relative map-grid overflow-hidden">
-        <svg className="absolute inset-0 w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#00FFB3" strokeWidth="0.5"/>
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-        </svg>
+      <div className="flex-1 relative overflow-hidden">
+        <style>{`
+          .zone-tooltip {
+            background: rgba(8,12,23,0.85) !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #fff !important;
+            font-size: 10px !important;
+            font-family: 'Golos Text', sans-serif !important;
+            font-weight: 600 !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+          }
+          .zone-tooltip::before { display:none !important; }
+          .leaflet-container { background: #080c17; }
+          @keyframes ping-slow {
+            0% { transform: scale(1); opacity: 0.8; }
+            70% { transform: scale(1.8); opacity: 0; }
+            100% { transform: scale(1.8); opacity: 0; }
+          }
+          @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-4px); }
+          }
+          @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 1; }
+            100% { transform: scale(2.5); opacity: 0; }
+          }
+        `}</style>
 
-        <svg className="absolute inset-0 w-full h-full pointer-events-none">
-          {contacts.filter(c => c.status !== "offline").map(c => (
-            <line key={c.id} x1="50%" y1="50%" x2={`${c.x}%`} y2={`${c.y}%`}
-              stroke={c.color} strokeWidth="1" strokeOpacity="0.2" strokeDasharray="4 4" />
-          ))}
-          {selectedContact && (
-            <polyline
-              points={`${selectedContact.x - 10}%,${selectedContact.y + 15}% ${selectedContact.x - 5}%,${selectedContact.y + 8}% ${selectedContact.x}%,${selectedContact.y}%`}
-              fill="none" stroke={selectedContact.color} strokeWidth="2" className="route-line"
-            />
-          )}
-        </svg>
+        <div ref={containerRef} className="w-full h-full" />
 
-        {zoneList.filter(z => z.active).map(z => (
-          <div key={z.id} className="absolute zone-circle flex items-center justify-center"
-            style={{ left: `${z.x}%`, top: `${z.y}%`, width: `${z.radius * 0.28}px`, height: `${z.radius * 0.28}px`, transform: 'translate(-50%, -50%)', borderColor: z.color + '55', boxShadow: `0 0 30px ${z.color}18` }}>
-            <span className="text-[10px] font-medium opacity-60" style={{ color: z.color }}>{z.name}</span>
-          </div>
-        ))}
-
-        {contacts.map(c => (
-          <button key={c.id} className="absolute group"
-            style={{ left: `${c.x}%`, top: `${c.y}%`, transform: 'translate(-50%, -50%)' }}
-            onClick={() => setSelectedContact(selectedContact?.id === c.id ? null : c)}>
-            {c.status === "online" && (
-              <div className="absolute inset-0 rounded-full animate-ping-slow" style={{ backgroundColor: c.color + '30', width: 40, height: 40 }} />
-            )}
-            <div className="relative w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-[#080c17] transition-all duration-200 group-hover:scale-110"
-              style={{ backgroundColor: c.color, boxShadow: `0 0 16px ${c.color}60` }}>
-              {c.name.charAt(0)}
-              {c.status === "offline" && <div className="absolute inset-0 rounded-full bg-black/50" />}
-            </div>
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full border-2 border-[#080c17]"
-              style={{ backgroundColor: statusColor[c.status] }} />
-          </button>
-        ))}
-
-        <div className="absolute" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
-          <div className="absolute rounded-full animate-pulse-ring bg-[#00FFB3]/20"
-            style={{ width: 60, height: 60, top: -20, left: -20 }} />
-          <div className="w-5 h-5 rounded-full bg-[#00FFB3] border-2 border-white animate-float"
-            style={{ boxShadow: '0 0 20px #00FFB380' }} />
-        </div>
-
+        {/* Contact popup */}
         {selectedContact && (
-          <div className="absolute glass rounded-2xl p-4 w-60 animate-slide-up z-10"
-            style={{ left: `${Math.min(selectedContact.x + 6, 55)}%`, top: `${Math.max(selectedContact.y - 22, 4)}%`, borderColor: selectedContact.color + '40', borderWidth: 1 }}>
+          <div className="absolute glass rounded-2xl p-4 w-60 animate-slide-up z-[1000] top-4 left-4"
+            style={{ borderColor: selectedContact.color + '40', borderWidth: 1 }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-[#080c17] shrink-0"
                 style={{ backgroundColor: selectedContact.color }}>
@@ -101,19 +219,21 @@ export default function MapTab({ zoneList, selectedContact, setSelectedContact }
           </div>
         )}
 
-        <div className="absolute right-4 bottom-4 flex flex-col gap-2">
-          <button className="w-10 h-10 glass rounded-xl flex items-center justify-center glass-hover">
+        {/* Zoom controls */}
+        <div className="absolute right-4 bottom-4 flex flex-col gap-2 z-[1000]">
+          <button className="w-10 h-10 glass rounded-xl flex items-center justify-center glass-hover" onClick={handleZoomIn}>
             <Icon name="Plus" size={18} className="text-[#00FFB3]" />
           </button>
-          <button className="w-10 h-10 glass rounded-xl flex items-center justify-center glass-hover">
+          <button className="w-10 h-10 glass rounded-xl flex items-center justify-center glass-hover" onClick={handleZoomOut}>
             <Icon name="Minus" size={18} className="text-white/50" />
           </button>
-          <button className="w-10 h-10 glass rounded-xl flex items-center justify-center glass-hover mt-1">
+          <button className="w-10 h-10 glass rounded-xl flex items-center justify-center glass-hover mt-1" onClick={handleCenter}>
             <Icon name="Crosshair" size={18} className="text-[#00C2FF]" />
           </button>
         </div>
 
-        <div className="absolute left-4 bottom-4 glass rounded-2xl px-4 py-2 flex items-center gap-2">
+        {/* Online count */}
+        <div className="absolute left-4 bottom-4 glass rounded-2xl px-4 py-2 flex items-center gap-2 z-[1000]">
           <div className="w-2 h-2 rounded-full bg-[#00FFB3] animate-blink" />
           <span className="text-xs text-white/70">
             <span className="text-[#00FFB3] font-bold">{contacts.filter(c => c.status === "online").length}</span>

@@ -10,6 +10,8 @@ export interface Contact {
   battery: number;
   x: number;
   y: number;
+  lat: number;
+  lng: number;
   color: string;
 }
 
@@ -22,6 +24,8 @@ export interface Zone {
   color: string;
   x: number;
   y: number;
+  lat: number;
+  lng: number;
   triggers: number;
 }
 
@@ -53,16 +57,16 @@ export interface PrivacySettings {
 }
 
 export const contacts: Contact[] = [
-  { id: 1, name: "Анна Смирнова", phone: "+7 916 123-45-67", status: "online", location: "Москва, Арбат", lastSeen: "сейчас", battery: 78, x: 38, y: 35, color: "#00FFB3" },
-  { id: 2, name: "Дмитрий Козлов", phone: "+7 926 987-65-43", status: "online", location: "Москва, Центр", lastSeen: "сейчас", battery: 45, x: 60, y: 45, color: "#B44DFF" },
-  { id: 3, name: "Мария Петрова", phone: "+7 985 555-12-34", status: "away", location: "Москва, Сокол", lastSeen: "5 мин назад", battery: 92, x: 45, y: 62, color: "#00C2FF" },
-  { id: 4, name: "Сергей Иванов", phone: "+7 903 777-88-99", status: "offline", location: "Москва, Войковская", lastSeen: "2 часа назад", battery: 15, x: 70, y: 30, color: "#FF6B35" },
+  { id: 1, name: "Анна Смирнова", phone: "+7 916 123-45-67", status: "online", location: "Москва, Арбат", lastSeen: "сейчас", battery: 78, x: 38, y: 35, lat: 55.7522, lng: 37.5920, color: "#00FFB3" },
+  { id: 2, name: "Дмитрий Козлов", phone: "+7 926 987-65-43", status: "online", location: "Москва, Центр", lastSeen: "сейчас", battery: 45, x: 60, y: 45, lat: 55.7558, lng: 37.6173, color: "#B44DFF" },
+  { id: 3, name: "Мария Петрова", phone: "+7 985 555-12-34", status: "away", location: "Москва, Сокол", lastSeen: "5 мин назад", battery: 92, x: 45, y: 62, lat: 55.7975, lng: 37.5707, color: "#00C2FF" },
+  { id: 4, name: "Сергей Иванов", phone: "+7 903 777-88-99", status: "offline", location: "Москва, Войковская", lastSeen: "2 часа назад", battery: 15, x: 70, y: 30, lat: 55.8163, lng: 37.4965, color: "#FF6B35" },
 ];
 
 export const initialZones: Zone[] = [
-  { id: 1, name: "Дом", address: "ул. Тверская, 12", radius: 200, active: true, color: "#00FFB3", x: 38, y: 35, triggers: 24 },
-  { id: 2, name: "Работа", address: "Новый Арбат, 36", radius: 300, active: true, color: "#B44DFF", x: 60, y: 48, triggers: 18 },
-  { id: 3, name: "Школа", address: "ул. Садовая, 5", radius: 150, active: false, color: "#00C2FF", x: 30, y: 65, triggers: 7 },
+  { id: 1, name: "Дом", address: "ул. Тверская, 12", radius: 300, active: true, color: "#00FFB3", x: 38, y: 35, lat: 55.7650, lng: 37.6050, triggers: 24 },
+  { id: 2, name: "Работа", address: "Новый Арбат, 36", radius: 400, active: true, color: "#B44DFF", x: 60, y: 48, lat: 55.7520, lng: 37.5830, triggers: 18 },
+  { id: 3, name: "Школа", address: "ул. Садовая, 5", radius: 200, active: false, color: "#00C2FF", x: 30, y: 65, lat: 55.7700, lng: 37.6300, triggers: 7 },
 ];
 
 export const historyData: HistoryEntry[] = [
