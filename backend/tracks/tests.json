@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "GET tracks",
+      "method": "GET",
+      "path": "/?session_id=default",
+      "expectedStatus": 200,
+      "expectedBody": {"tracks": []},
+      "bodyMatcher": "partial"
+    }
+  ]
+}
